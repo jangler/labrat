@@ -16,7 +16,11 @@ def _f(t):
 
 # limit a value between a minimum and maximum
 def _lim(minimum, val, maximum):
-    return max(minimum, min(val, maximum))
+    if val < minimum:
+        return minimum, True
+    if val > maximum:
+        return maximum, True
+    return val, False
 
 
 def rgb_from_int(val):
@@ -43,11 +47,15 @@ def xyz_from_rgb(rgb):
 
 
 def rgb_from_xyz(xyz):
-    """Return an RGB tuple converted from an XYZ tuple."""
-    return tuple([
-        _lim(0, 3.240479 * xyz[0] - 1.537150 * xyz[1] - 0.498535 * xyz[2], 1),
-        _lim(0, -0.969256 * xyz[0] + 1.875992 * xyz[1] + 0.041556 * xyz[2], 1),
-        _lim(0, 0.055648 * xyz[0] - 0.204043 * xyz[1] + 1.057311 * xyz[2], 1)])
+    """Return an RGB tuple converted from an XYZ tuple, along with a bool
+    indicating whether clipping occured."""
+    x, xl = _lim(0, 3.240479 * xyz[0] - 1.537150 * xyz[1] - 0.498535 * xyz[2],
+                 1)
+    y, yl = _lim(0, -0.969256 * xyz[0] + 1.875992 * xyz[1] + 0.041556 * xyz[2],
+                 1)
+    z, zl = _lim(0, 0.055648 * xyz[0] - 0.204043 * xyz[1] + 1.057311 * xyz[2],
+                 1)
+    return tuple([x, y, z]), xl or yl or zl
 
 
 def lab_from_xyz(xyz):

@@ -89,11 +89,13 @@ class App(tk.Frame):
 
         # create RGB control
         rgb_frame = tk.Frame(control_frame)
-        tk.Label(rgb_frame, text='RGB').pack(side='left')
+        self.clip_label = tk.Label(control_frame, anchor='w')
+        self.clip_label.pack(side='left')
         rgb_var = tk.StringVar()
         rgb_var.trace('w', self.rgb_update)
         self.rgb_entry = tk.Entry(rgb_frame, width=8, textvariable=rgb_var)
-        self.rgb_entry.pack(side='left')
+        self.rgb_entry.pack(side='right')
+        tk.Label(rgb_frame, text='RGB').pack(side='right')
         rgb_frame.pack(anchor='e')
 
         control_frame.pack(anchor='n', side='left')
@@ -135,10 +137,11 @@ class App(tk.Frame):
         # convert LAB to int
         lab = tuple([self.lscale.get(), self.ascale.get(), self.bscale.get()])
         xyz = convert.xyz_from_lab(lab)
-        rgb = convert.rgb_from_xyz(xyz)
+        rgb, clipped = convert.rgb_from_xyz(xyz)
         val = convert.int_from_rgb(rgb)
 
-        # update color preview and RGB entry
+        # update clip indicator, color preview, and RGB entry
+        self.clip_label.config(text='(clipped)' if clipped else '')
         hex_str = '#{}'.format(hex(val)[2:].rjust(6, '0'))
         self.preview.config(bg=hex_str)
         if self.rgb_entry.get() != hex_str:
