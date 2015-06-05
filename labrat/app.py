@@ -13,8 +13,35 @@ import labrat.convert as convert
 VERSION = [0, 0, 0]
 
 
+def canonicalize_int(s):
+    try:
+        return str(int(s))
+    except ValueError:
+        return s
+
+
+def rgb_accept(c):
+    return c.isdigit() or c == '#' or ('a' <= c.lower() <= 'f')
+
+
 def signature():
     return '{} {}.{}.{}'.format(os.path.basename(sys.argv[0]), *VERSION)
+
+
+def validate_entry(entry, accept, transform, minimum, maximum):
+    s = transform(''.join(ch for ch in entry.get() if accept(ch)))
+
+    try:
+        if int(s) < minimum:
+            s = str(minimum)
+        elif int(s) > maximum:
+            s = str(maximum)
+    except ValueError:
+        pass
+
+    if s != entry.get():
+        entry.delete(0, 'end')
+        entry.insert(0, s)
 
 
 ABOUT = """{}
@@ -106,7 +133,13 @@ class App(tk.Frame):
         main_frame.pack(expand=1, fill='both')
 
     def rgb_update(self, *args):
-        if self.updating or len(self.rgb_entry.get()) != 7:
+        if self.updating:
+            return
+
+        validate_entry(self.rgb_entry, rgb_accept,
+                       lambda s: '#' + s[1:7].replace('#', ''), 0, 0)
+
+        if len(self.rgb_entry.get()) != 7:
             return
 
         try:
@@ -135,7 +168,7 @@ class App(tk.Frame):
                 pass
 
         # convert LAB to int
-        lab = tuple([self.lscale.get(), self.ascale.get(), self.bscale.get()])
+        lab = [self.lscale.get(), self.ascale.get(), self.bscale.get()]
         xyz = convert.xyz_from_lab(lab)
         rgb, clipped = convert.rgb_from_xyz(xyz)
         val = convert.int_from_rgb(rgb)
@@ -153,8 +186,16 @@ class App(tk.Frame):
             return
         self.updating = True
 
+        # validate L*a*b* entries
+        validate_entry(self.lentry, str.isdigit, canonicalize_int, 0, 100)
+        for entry in [self.aentry, self.bentry]:
+            validate_entry(entry, lambda c: c.isdigit() or c == '-',
+                           lambda s: canonicalize_int(s[:1] +
+                                                      s[1:].replace('-', '')),
+                           -100, 100)
+
         # set hue and sat based on a* and b*
-        lab = tuple([self.lscale.get(), self.ascale.get(), self.bscale.get()])
+        lab = [self.lscale.get(), self.ascale.get(), self.bscale.get()]
         hue = str(round(math.degrees(math.atan2(lab[2], lab[1])) % 360))
         if self.hentry.get() != hue:
             self.hentry.delete(0, 'end')
@@ -171,6 +212,10 @@ class App(tk.Frame):
         if self.updating:
             return
         self.updating = True
+
+        # validate hue, sat entries
+        validate_entry(self.hentry, str.isdigit, canonicalize_int, 0, 360)
+        validate_entry(self.sentry, str.isdigit, canonicalize_int, 0, 100)
 
         # set a* and b* based on hue and sat
         try:
