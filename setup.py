@@ -9,7 +9,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='labrat',
-    version='0.0.0',
+    version='0.1.0',
     description='CIELAB color picker',
     long_description=long_description,
     url='http://jangler.info/code/labrat',
@@ -17,7 +17,7 @@ setup(
     author_email='brandon@jangler.info',
     license='MIT',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: End Users/Desktop',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',

@@ -1,8 +1,9 @@
-labrat
+Labrat
 ======
 
 A graphical color picker for the CIELAB color space that allows conversion to
-and from RGB values.
+and from RGB values, and adjustment of hue and saturation mapped onto the
+CIELAB color space.
 
 Installation
 ------------

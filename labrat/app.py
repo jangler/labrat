@@ -1,7 +1,6 @@
 import argparse
 import functools
 import math
-import os.path
 import sys
 import traceback
 
@@ -11,7 +10,7 @@ import tkinter.messagebox
 from labrat.catcher import Catcher
 import labrat.convert as convert
 
-VERSION = [0, 0, 0]
+VERSION = [0, 1, 0]
 
 
 def canonicalize_int(s):
@@ -33,7 +32,7 @@ def rgb_accept(c):
 
 
 def signature():
-    return '{} {}.{}.{}'.format(os.path.basename(sys.argv[0]), *VERSION)
+    return '{} {}.{}.{}'.format('Labrat', *VERSION)
 
 
 def validate_entry(entry, accept, transform, minimum, maximum):
