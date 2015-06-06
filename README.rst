@@ -8,9 +8,14 @@ CIELAB color space.
 Installation
 ------------
 
+Installation via pip:
+
 ::
 
-	[sudo] pip[3] install truce
+	[sudo] pip[3] install labrat
+
+If you use Arch Linux or a derivative, you may also install via the
+`AUR package <https://aur.archlinux.org/packages/labrat/>`_.
 
 Usage
 -----

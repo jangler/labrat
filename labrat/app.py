@@ -10,7 +10,7 @@ import tkinter.messagebox
 from labrat.catcher import Catcher
 import labrat.convert as convert
 
-VERSION = [0, 1, 0]
+VERSION = [0, 1, 1]
 
 
 def canonicalize_int(s):
