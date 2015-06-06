@@ -1,4 +1,5 @@
 import argparse
+import functools
 import math
 import os.path
 import sys
@@ -18,6 +19,13 @@ def canonicalize_int(s):
         return str(int(s))
     except ValueError:
         return s
+
+
+def int_or_zero(s):
+    try:
+        return int(s)
+    except ValueError:
+        return 0
 
 
 def rgb_accept(c):
@@ -52,19 +60,31 @@ http://jangler.info/code/labrat""".format(signature())
 class App(tk.Frame):
     def __init__(self, master=None):
         tk.Frame.__init__(self, master)
-        self.updating = False
+        self.synced = True
+        self.l = 50
+        self.a = self.b = self.hue = self.sat = 0
         self.create_widgets()
         self.pack(expand=1, fill='both')
         master.protocol("WM_DELETE_WINDOW", self.quit)
         master.title(signature())
 
-    def create_scale(self, master, label, from_, to, initial, hs):
+    def getl(self): return self.l
+
+    def geta(self): return self.a
+
+    def getb(self): return self.b
+
+    def gethue(self): return self.hue
+
+    def getsat(self): return self.sat
+
+    def create_scale(self, master, label, from_, to, hs, name):
         # determine which commands to associate
         if hs:
-            scale_update = self.hs_scale_update
+            scale_update = functools.partial(self.hs_scale_update, name)
             entry_update = self.hs_entry_update
         else:
-            scale_update = self.lab_scale_update
+            scale_update = functools.partial(self.lab_scale_update, name)
             entry_update = self.lab_entry_update
 
         # create widgets
@@ -73,8 +93,7 @@ class App(tk.Frame):
         scale = tk.Scale(frame, from_=from_, to=to, showvalue=0,
                          orient='horizontal', command=scale_update)
         scale.pack(side='left')
-        var = tk.StringVar()
-        var.set(initial)
+        var = tk.StringVar(name=name)
         var.trace('w', entry_update)
         entry = tk.Entry(frame, width=4, textvariable=var)
         entry.pack(side='left')
@@ -95,30 +114,30 @@ class App(tk.Frame):
 
         # create L*a*b* controls
         self.lscale, self.lentry = \
-            self.create_scale(control_frame, 'L*', 0, 100, 50, False)
+            self.create_scale(control_frame, 'L*', 0, 100, False, 'l')
         self.ascale, self.aentry = \
-            self.create_scale(control_frame, 'a*', -100, 100, 0, False)
+            self.create_scale(control_frame, 'a*', -100, 100, False, 'a')
         self.bscale, self.bentry = \
-            self.create_scale(control_frame, 'b*', -100, 100, 0, False)
+            self.create_scale(control_frame, 'b*', -100, 100, False, 'b')
         self.hscale, self.hentry = \
-            self.create_scale(control_frame, 'Hue', 0, 360, 0, True)
+            self.create_scale(control_frame, 'Hue', 0, 360, True, 'hue')
         self.sscale, self.sentry = \
-            self.create_scale(control_frame, 'Sat', 0, 100, 0, True)
+            self.create_scale(control_frame, 'Sat', 0, 100, True, 'sat')
 
-        # associate entries with their corresponding scales
+        # associate entries with their corresponding values
         self.control_dict = {
-            self.lentry: self.lscale,
-            self.aentry: self.ascale,
-            self.bentry: self.bscale,
-            self.hentry: self.hscale,
-            self.sentry: self.sscale
+            tuple([self.lscale, self.lentry]): self.getl,
+            tuple([self.ascale, self.aentry]): self.geta,
+            tuple([self.bscale, self.bentry]): self.getb,
+            tuple([self.hscale, self.hentry]): self.gethue,
+            tuple([self.sscale, self.sentry]): self.getsat,
         }
 
         # create RGB control
         rgb_frame = tk.Frame(control_frame)
         self.clip_label = tk.Label(control_frame, anchor='w')
         self.clip_label.pack(side='left')
-        rgb_var = tk.StringVar()
+        rgb_var = tk.StringVar(name='rgb')
         rgb_var.trace('w', self.rgb_update)
         self.rgb_entry = tk.Entry(rgb_frame, width=8, textvariable=rgb_var)
         self.rgb_entry.pack(side='right')
@@ -128,47 +147,36 @@ class App(tk.Frame):
         control_frame.pack(anchor='n', side='left')
 
         # set initial preview color
-        self.lab_entry_update()
+        self.update_rgb()
 
         main_frame.pack(expand=1, fill='both')
 
     def rgb_update(self, *args):
-        if self.updating:
+        if not self.synced:
             return
+        self.synced = False
 
         validate_entry(self.rgb_entry, rgb_accept,
                        lambda s: '#' + s[1:7].replace('#', ''), 0, 0)
 
         if len(self.rgb_entry.get()) != 7:
+            self.synced = True
             return
 
-        try:
-            val = int(self.rgb_entry.get()[1:], 16)
-        except ValueError:
-            return
+        self.rgb = int(self.rgb_entry.get()[1:], 16)
 
-        # convert int to LAB
-        rgb = convert.rgb_from_int(val)
+        # convert int to LAB, update values and entries
+        rgb = convert.rgb_from_int(self.rgb)
         xyz = convert.xyz_from_rgb(rgb)
-        lab = convert.lab_from_xyz(xyz)
+        self.l, self.a, self.b = convert.lab_from_xyz(xyz)
+        self.hue = math.degrees(math.atan2(self.b, self.a)) % 360
+        self.sat = math.hypot(self.a, self.b) / math.hypot(1, 1)
+        self.update_entries()
+        self.update_rgb()
 
-        # update LAB entries
-        for i, entry in enumerate([self.lentry, self.aentry, self.bentry]):
-            if entry.get() != str(round(lab[i])):
-                entry.delete(0, 'end')
-                entry.insert(0, str(round(lab[i])))
-
-    def entry_update(self):
-        # update scales
-        for entry, scale in self.control_dict.items():
-            try:
-                val = int(entry.get())
-                scale.set(val)
-            except ValueError:
-                pass
-
+    def update_rgb(self):
         # convert LAB to int
-        lab = [self.lscale.get(), self.ascale.get(), self.bscale.get()]
+        lab = [self.l, self.a, self.b]
         xyz = convert.xyz_from_lab(lab)
         rgb, clipped = convert.rgb_from_xyz(xyz)
         val = convert.int_from_rgb(rgb)
@@ -181,59 +189,69 @@ class App(tk.Frame):
             self.rgb_entry.delete(0, 'end')
             self.rgb_entry.insert(0, hex_str)
 
-    def lab_entry_update(self, *args):
-        if self.updating:
-            return
-        self.updating = True
+        # by now all values should be synchronized
+        self.synced = True
 
-        # validate L*a*b* entries
-        validate_entry(self.lentry, str.isdigit, canonicalize_int, 0, 100)
-        for entry in [self.aentry, self.bentry]:
-            validate_entry(entry, lambda c: c.isdigit() or c == '-',
+    def update_hs(self):
+        self.hue = math.degrees(math.atan2(self.b, self.a)) % 360
+        self.sat = math.hypot(self.a, self.b) / math.hypot(1, 1)
+        if self.hentry.get() != str(round(self.hue)):
+            self.hentry.delete(0, 'end')
+            self.hentry.insert(0, str(round(self.hue)))
+        if self.sentry.get() != str(round(self.sat)):
+            self.sentry.delete(0, 'end')
+            self.sentry.insert(0, str(round(self.sat)))
+
+    def lab_entry_update(self, name, index, mode):
+        if not self.synced:
+            return
+        self.synced = False
+
+        if name == 'l':
+            validate_entry(self.lentry, str.isdigit, canonicalize_int, 0, 100)
+            self.l = int_or_zero(self.lentry.get())
+        elif name == 'a':
+            validate_entry(self.aentry, lambda c: c.isdigit() or c == '-',
                            lambda s: canonicalize_int(s[:1] +
                                                       s[1:].replace('-', '')),
                            -100, 100)
+            self.a = int_or_zero(self.aentry.get())
+        elif name == 'b':
+            validate_entry(self.bentry, lambda c: c.isdigit() or c == '-',
+                           lambda s: canonicalize_int(s[:1] +
+                                                      s[1:].replace('-', '')),
+                           -100, 100)
+            self.b = int_or_zero(self.bentry.get())
 
-        # set hue and sat based on a* and b*
-        lab = [self.lscale.get(), self.ascale.get(), self.bscale.get()]
-        hue = str(round(math.degrees(math.atan2(lab[2], lab[1])) % 360))
-        if self.hentry.get() != hue:
-            self.hentry.delete(0, 'end')
-            self.hentry.insert(0, hue)
-        sat = str(round(math.hypot(lab[1], lab[2]) / 1.41))
-        if self.sentry.get() != sat:
-            self.sentry.delete(0, 'end')
-            self.sentry.insert(0, sat)
+        self.update_hs()
+        self.update_rgb()
 
-        self.entry_update()
-        self.updating = False
+    def update_ab(self):
+        hue = math.radians(self.hue)
+        sat = self.sat * math.hypot(1, 1)
+        self.a = math.cos(hue) * sat
+        self.b = math.sin(hue) * sat
+        if self.aentry.get() != str(round(self.a)):
+            self.aentry.delete(0, 'end')
+            self.aentry.insert(0, str(round(self.a)))
+        if self.bentry.get() != str(round(self.b)):
+            self.bentry.delete(0, 'end')
+            self.bentry.insert(0, str(round(self.b)))
 
-    def hs_entry_update(self, *args):
-        if self.updating:
+    def hs_entry_update(self, name, index, mode):
+        if not self.synced:
             return
-        self.updating = True
+        self.synced = False
 
-        # validate hue, sat entries
-        validate_entry(self.hentry, str.isdigit, canonicalize_int, 0, 360)
-        validate_entry(self.sentry, str.isdigit, canonicalize_int, 0, 100)
+        if name == 'hue':
+            validate_entry(self.hentry, str.isdigit, canonicalize_int, 0, 360)
+            self.hue = int_or_zero(self.hentry.get())
+        elif name == 'sat':
+            validate_entry(self.sentry, str.isdigit, canonicalize_int, 0, 100)
+            self.sat = int_or_zero(self.sentry.get())
 
-        # set a* and b* based on hue and sat
-        try:
-            hue = math.radians(int(self.hentry.get()))
-            sat = int(self.sentry.get()) * 1.41
-            a = str(round(math.cos(hue) * sat))
-            b = str(round(math.sin(hue) * sat))
-            if self.aentry.get() != a:
-                self.aentry.delete(0, 'end')
-                self.aentry.insert(0, a)
-            if self.bentry.get() != b:
-                self.bentry.delete(0, 'end')
-                self.bentry.insert(0, b)
-        except ValueError:
-            pass
-
-        self.entry_update()
-        self.updating = False
+        self.update_ab()
+        self.update_rgb()
 
     def error(self, err):
         self.state()
@@ -243,22 +261,44 @@ class App(tk.Frame):
     def quit(self, event=None):
         super().quit()
 
-    def scale_update(self):
-        modified = False
-        for entry, scale in self.control_dict.items():
-            if entry.get() and entry.get() != str(scale.get()):
-                modified = True
+    def update_entries(self):
+        for controls, accessor in self.control_dict.items():
+            scale, entry = controls
+            if scale.get() != accessor():
+                scale.set(accessor())
+            if entry.get() != str(round(accessor())):
                 entry.delete(0, 'end')
-                entry.insert(0, str(scale.get()))
-        return modified
+                entry.insert(0, str(round(accessor())))
 
-    def lab_scale_update(self, event=None):
-        if self.scale_update():
-            self.lab_entry_update()
+    def lab_scale_update(self, name, event):
+        if not self.synced:
+            return
+        self.synced = False
 
-    def hs_scale_update(self, event=None):
-        if self.scale_update():
-            self.hs_entry_update()
+        if name == 'l':
+            self.l = self.lscale.get()
+        elif name == 'a':
+            self.a = self.ascale.get()
+        elif name == 'b':
+            self.b = self.bscale.get()
+
+        self.update_hs()
+        self.update_entries()
+        self.update_rgb()
+
+    def hs_scale_update(self, name, event):
+        if not self.synced:
+            return
+        self.synced = False
+
+        if name == 'hue':
+            self.hue = self.hscale.get()
+        elif name == 'sat':
+            self.sat = self.sscale.get()
+
+        self.update_ab()
+        self.update_entries()
+        self.update_rgb()
 
 
 def parse_args():
@@ -270,7 +310,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # create app and display tkinter exceptions in message boxes
+    # create app and catch tkinter exceptions in message boxes
     tk.CallWrapper = Catcher
     app = App(tk.Tk())
 
