@@ -195,9 +195,13 @@ class App(tk.Frame):
     def update_hs(self):
         self.hue = math.degrees(math.atan2(self.b, self.a)) % 360
         self.sat = math.hypot(self.a, self.b) / math.hypot(1, 1)
+        if self.hscale.get() != self.hue:
+            self.hscale.set(self.hue)
         if self.hentry.get() != str(round(self.hue)):
             self.hentry.delete(0, 'end')
             self.hentry.insert(0, str(round(self.hue)))
+        if self.sscale.get() != self.sat:
+            self.sscale.set(self.sat)
         if self.sentry.get() != str(round(self.sat)):
             self.sentry.delete(0, 'end')
             self.sentry.insert(0, str(round(self.sat)))
@@ -229,14 +233,28 @@ class App(tk.Frame):
     def update_ab(self):
         hue = math.radians(self.hue)
         sat = self.sat * math.hypot(1, 1)
-        self.a = math.cos(hue) * sat
-        self.b = math.sin(hue) * sat
+        self.a = max(-100, min(100, math.cos(hue) * sat))
+        self.b = max(-100, min(100, math.sin(hue) * sat))
+        self.sat = math.hypot(self.b, self.a) / math.hypot(1, 1)
+        if self.ascale.get() != self.a:
+            self.ascale.set(self.a)
         if self.aentry.get() != str(round(self.a)):
             self.aentry.delete(0, 'end')
             self.aentry.insert(0, str(round(self.a)))
+        if self.bscale.get() != self.b:
+            self.bscale.set(self.b)
         if self.bentry.get() != str(round(self.b)):
             self.bentry.delete(0, 'end')
             self.bentry.insert(0, str(round(self.b)))
+        if self.sscale.get() != self.sat:
+            self.sscale.set(self.sat)
+        if self.sentry.get() != str(round(self.sat)):
+            self.sentry.delete(0, 'end')
+            self.sentry.insert(0, str(round(self.sat)))
+
+    def max_sat(self):
+        return (abs(math.cos(math.radians(self.hue))) +
+                abs(math.sin(math.radians(self.hue)))) / math.hypot(1, 1) * 100
 
     def hs_entry_update(self, name, index, mode):
         if not self.synced:
@@ -248,7 +266,7 @@ class App(tk.Frame):
             self.hue = int_or_zero(self.hentry.get())
         elif name == 'sat':
             validate_entry(self.sentry, str.isdigit, canonicalize_int, 0, 100)
-            self.sat = int_or_zero(self.sentry.get())
+            self.sat = min(self.max_sat(), int_or_zero(self.sentry.get()))
 
         self.update_ab()
         self.update_rgb()
@@ -294,7 +312,7 @@ class App(tk.Frame):
         if name == 'hue':
             self.hue = self.hscale.get()
         elif name == 'sat':
-            self.sat = self.sscale.get()
+            self.sat = min(self.max_sat(), self.sscale.get())
 
         self.update_ab()
         self.update_entries()
